@@ -4,16 +4,17 @@ import (
 	"encoding/csv"
 	"os"
 	"strconv"
+
 	"github.com/pkg/errors"
 )
 
-func MakeInputs(fileName string) (string, []string, []float64, error) {
+func MakeInputs(fileName string) ([]string, []int, error) {
 
 	// Open the .csv file
 	file, err := os.Open(fileName)
 
 	if err != nil {
-		return "", nil, nil, err
+		return nil, nil, err
 	}
 	defer file.Close()
 
@@ -23,12 +24,12 @@ func MakeInputs(fileName string) (string, []string, []float64, error) {
 	// Read all the data from the file
 	rawData, err := reader.ReadAll()
 	if err != nil {
-		return "", nil, nil, err
+		return nil, nil, err
 	}
 
-	var inputs string
-	outputs := make([]string, len(rawData))
-	targets := make([]float64, len(rawData))
+	//var inputs string
+	outputs := make([]string, len(rawData)+1)
+	targets := make([]int, len(rawData))
 
 	//var inputsIdx int
 	var outputsIdx int
@@ -41,7 +42,8 @@ func MakeInputs(fileName string) (string, []string, []float64, error) {
 
 			if i == 0 {
 				if fl == 0 {
-					inputs = value
+					outputs[outputsIdx] = value
+					outputsIdx++
 					fl = 1
 					continue
 				}
@@ -52,14 +54,13 @@ func MakeInputs(fileName string) (string, []string, []float64, error) {
 				continue
 			}
 			if i == 2 {
-				targets[targetsIdx], err = strconv.ParseFloat(value, 64)
+				targets[targetsIdx], err = strconv.Atoi(value)
 				if err != nil {
-					return "", nil, nil, errors.Wrap(err, "Error while parsing!")
+					return nil, nil, errors.Wrap(err, "Error while parsing!")
 				}
 				targetsIdx++
 			}
 		}
 	}
-	return inputs, outputs, targets, nil
+	return outputs, targets, nil
 }
-
