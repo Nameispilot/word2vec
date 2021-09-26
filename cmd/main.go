@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	w "word2vec"
 )
@@ -28,5 +29,8 @@ func main() {
 
 	outputs := arrOut[1:]
 
-	w.Word2Vec(inputWord, outputs, targets)
+	err = w.Word2Vec(inputWord, outputs, targets)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
