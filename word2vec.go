@@ -8,10 +8,11 @@ import (
 	"gorgonia.org/tensor"
 )
 
-var epochs = 1000
+var epochs = 100
 var embeddingsSize = 8
 var vocabularySize = 233
-var batchSize = 3
+
+//var batchSize = 3
 
 //embeddinf, flatten and softmax layers
 type nn struct {
@@ -34,9 +35,6 @@ func newNN(g *gorgonia.ExprGraph, vocab int) *nn {
 	//softmax layer
 	w1 := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(vocabularySize, vocab),
 		gorgonia.WithName("w1"), gorgonia.WithInit(gorgonia.GlorotN(1.0)))
-
-	/*w2 := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(3, 3),
-	gorgonia.WithName("w1"), gorgonia.WithInit(gorgonia.GlorotN(1.0))) */
 
 	return &nn{
 		g:  g,
@@ -94,11 +92,17 @@ func Word2Vec(inputs int, outputs []int, targets []float64) error {
 		return errors.Wrap(err, "Unable to fwd!")
 	}
 
-	losses, err := gorgonia.HadamardProd(m.out, y)
+	/*losses, err := gorgonia.HadamardProd(m.out, y)
 	if err != nil {
 		return errors.Wrap(err, "Error!")
 	}
 	cost, _ := gorgonia.Mean(losses)
+	cost, _ = gorgonia.Neg(cost) */
+
+	losses, _ := gorgonia.Sub(m.out, y)
+	square, _ := gorgonia.Square(losses)
+	cost, _ := gorgonia.Mean(square)
+
 	if _, err = gorgonia.Grad(cost, m.learnables()...); err != nil {
 		return errors.Wrap(err, "Unable to grad!")
 	}
