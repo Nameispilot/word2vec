@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func MakeInputs(fileName string) ([]string, []int, error) {
+func MakeInputs(fileName string) ([]string, []float64, error) {
 
 	// Open the .csv file
 	file, err := os.Open(fileName)
@@ -29,7 +29,7 @@ func MakeInputs(fileName string) ([]string, []int, error) {
 
 	//var inputs string
 	outputs := make([]string, len(rawData)+1)
-	targets := make([]int, len(rawData))
+	targets := make([]float64, len(rawData))
 
 	//var inputsIdx int
 	var outputsIdx int
@@ -54,7 +54,7 @@ func MakeInputs(fileName string) ([]string, []int, error) {
 				continue
 			}
 			if i == 2 {
-				targets[targetsIdx], err = strconv.Atoi(value)
+				targets[targetsIdx], err = strconv.ParseFloat(value, 64)
 				if err != nil {
 					return nil, nil, errors.Wrap(err, "Error while parsing!")
 				}

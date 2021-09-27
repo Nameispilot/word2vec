@@ -8,42 +8,41 @@ import (
 	"gorgonia.org/tensor"
 )
 
-var epochs = 500
+var epochs = 1000
 var embeddingsSize = 8
 var vocabularySize = 233
 var batchSize = 3
 
 //embeddinf, flatten and softmax layers
 type nn struct {
-	g          *gorgonia.ExprGraph
-	w0, w1, w2 *gorgonia.Node
-	out        *gorgonia.Node
-	predVal    gorgonia.Value
+	g       *gorgonia.ExprGraph
+	w0, w1  *gorgonia.Node
+	out     *gorgonia.Node
+	predVal gorgonia.Value
 }
 
 func (m *nn) learnables() gorgonia.Nodes {
 	return gorgonia.Nodes{m.w0, m.w1}
 }
 
-func newNN(g *gorgonia.ExprGraph) *nn {
+func newNN(g *gorgonia.ExprGraph, vocab int) *nn {
 
 	//embeddings
 	w0 := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(vocabularySize, embeddingsSize),
 		gorgonia.WithName("embedding"), gorgonia.WithInit(gorgonia.GlorotN(1.0)))
 
-	//flatten weights CHECK DIMENSIONS!
-	w1 := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(embeddingsSize, 3),
+	//softmax layer
+	w1 := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(vocabularySize, vocab),
 		gorgonia.WithName("w1"), gorgonia.WithInit(gorgonia.GlorotN(1.0)))
 
-	//softmax layer
-	w2 := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(3, 3),
-		gorgonia.WithName("w1"), gorgonia.WithInit(gorgonia.GlorotN(1.0)))
+	/*w2 := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(3, 3),
+	gorgonia.WithName("w1"), gorgonia.WithInit(gorgonia.GlorotN(1.0))) */
 
 	return &nn{
 		g:  g,
 		w0: w0,
 		w1: w1,
-		w2: w2,
+		//w2: w2,
 	}
 }
 
@@ -54,46 +53,43 @@ func (m *nn) fwd(x *gorgonia.Node) (err error) {
 	//embedding layer
 	l0 = x
 
-	if l0dot, err = gorgonia.Mul(l0, m.w0); err != nil {
+	wTrans, _ := gorgonia.Transpose(m.w0)
+
+	if l0dot, err = gorgonia.Mul(l0, wTrans); err != nil {
 		return errors.Wrap(err, "Unable to make an embedding layer!")
 	}
 	l1, _ = gorgonia.Sigmoid(l0dot)
 
 	//flatten layer
-	t := tensor.Shape{1, l1.DataSize()}
-	newL1, _ := gorgonia.Reshape(l1, t)
-	fmt.Println(newL1)
+	//t := tensor.Shape{l1.DataSize(), 1}
+	//newL1, _ := gorgonia.Reshape(l1, t)
+	//fmt.Println(newL1)
 
-	if l1dot, err = gorgonia.Mul(newL1, m.w1); err != nil {
-		return errors.Wrap(err, "Unable to make a flatten layer!")
+	//softmax
+	if l1dot, err = gorgonia.Mul(l1, m.w1); err != nil {
+		return errors.Wrap(err, "Unable to make a softmax layer!")
 	}
 	l2, _ = gorgonia.Sigmoid(l1dot)
 
-	//softmax layer
-	var out *gorgonia.Node
-	if out, err = gorgonia.Mul(l2, m.w2); err != nil {
-		return errors.Wrapf(err, "Unable to multiply l2 and w2")
-	}
-
-	m.out, err = gorgonia.SoftMax(out)
+	m.out = l2
 	gorgonia.Read(m.out, &m.predVal)
 	return
 }
 
-func Word2Vec(inputs int, outputs, targets []int) error {
+func Word2Vec(inputs int, outputs []int, targets []float64) error {
 	var err error
 	g := gorgonia.NewGraph()
 
 	//input node
-	x := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(embeddingsSize, 1),
+	x := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(1, embeddingsSize),
 		gorgonia.WithInit(gorgonia.GlorotN(1.0)), gorgonia.WithName("x"))
 
 	//output node
-	y := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(len(targets), 1), gorgonia.WithName("y"))
+	y := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(1, len(targets)), gorgonia.WithName("y"))
+	yT := tensor.New(tensor.WithBacking(targets))
+	gorgonia.Let(y, yT)
 
-	fmt.Println(x.Shape(), y.Shape())
-
-	m := newNN(g)
+	m := newNN(g, len(targets))
 	if err = m.fwd(x); err != nil {
 		return errors.Wrap(err, "Unable to fwd!")
 	}
@@ -107,31 +103,36 @@ func Word2Vec(inputs int, outputs, targets []int) error {
 		return errors.Wrap(err, "Unable to grad!")
 	}
 
-	/*vm := gorgonia.NewTapeMachine(g, gorgonia.BindDualValues(m.learnables()...))
-	//solver := gorgonia.NewAdamSolver()
+	vm := gorgonia.NewTapeMachine(g, gorgonia.BindDualValues(m.learnables()...))
+	solver := gorgonia.NewAdamSolver(gorgonia.WithLearnRate(0.01))
 
 	//numExamples := len(outputs)
 	//batches := numExamples / batchSize
 
 	for i := 0; i < epochs; i++ {
-		for b := 0; b < batches; b++ {
-			start := b * batchSize
-			end := start + batchSize
+		//for b := 0; b < batches; b++ {
+		//start := b * batchSize
+		//end := start + batchSize
 
-			/*var yVal tensor.Tensor
-			if yVal, err = outT.Slice(MakeRS(start, end)); err != nil {
-				return errors.Wrap(err, "Unable to slice outputs!")
-			}
-			fmt.Println(yVal.Data(), end)
-
-			vm.Reset()
-			if err = vm.RunAll(); err != nil {
-				return errors.Wrap(err, "Error while training!")
-			}
-			solver.Step(gorgonia.NodesToValueGrads(m.learnables()))
-
+		/*var yVal tensor.Tensor
+		if yVal, err = outT.Slice(MakeRS(start, end)); err != nil {
+			return errors.Wrap(err, "Unable to slice outputs!")
 		}
-	} */
+		fmt.Println(yVal.Data(), end) */
+
+		vm.Reset()
+		if err = vm.RunAll(); err != nil {
+			return errors.Wrap(err, "Error while training!")
+		}
+		solver.Step(gorgonia.NodesToValueGrads(m.learnables()))
+
+		//}
+	}
+	tens := tensor.New(tensor.WithBacking(m.predVal.Data()))
+	for i := 0; i < tens.Cap(); i += 3 {
+		V, _ := tens.Slice(MakeRS(i, i+3))
+		fmt.Printf("%.2f\n", V)
+	}
 
 	return nil
 }

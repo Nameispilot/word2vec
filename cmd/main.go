@@ -9,7 +9,7 @@ import (
 func main() {
 	var err error
 	var words []string
-	var targets []int
+	var targets []float64
 
 	//getting dataset from .csv
 	if words, targets, err = w.MakeInputs("cmd/dataset.csv"); err != nil {
