@@ -134,7 +134,9 @@ func Word2Vec(inputs int, outputs []int, targets []float64) error {
 	}
 	tens := tensor.New(tensor.WithBacking(m.predVal.Data()))
 	for i := 0; i < tens.Cap(); i += 3 {
+		tmp := targets[i : i+3]
 		V, _ := tens.Slice(MakeRS(i, i+3))
+		fmt.Println(tmp)
 		fmt.Printf("%.2f\n", V)
 	}
 
