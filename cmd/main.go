@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	w "word2vec"
 )
@@ -17,20 +16,17 @@ func main() {
 	}
 
 	//feature hashing
-	arrOut, hashTable := w.Hash(words)
-
-	var inputWord int
-	for i := range hashTable {
-		if hashTable[i] == words[0] {
-			inputWord = i
-			break
-		}
+	var arrOut []int
+	arrOut, err = w.Hash(words)
+	if err != nil {
+		log.Fatalf("%+v", err)
 	}
 
+	inputWord := arrOut[0]
 	outputs := arrOut[1:]
 
 	err = w.Word2Vec(inputWord, outputs, targets)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatalf("%+v", err)
 	}
 }

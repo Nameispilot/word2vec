@@ -12,9 +12,7 @@ var epochs = 100
 var embeddingsSize = 8
 var vocabularySize = 233
 
-//var batchSize = 3
-
-//embeddinf, flatten and softmax layers
+//embedding and softmax layers
 type nn struct {
 	g       *gorgonia.ExprGraph
 	w0, w1  *gorgonia.Node
@@ -32,7 +30,7 @@ func newNN(g *gorgonia.ExprGraph, vocab int) *nn {
 	w0 := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(vocabularySize, embeddingsSize),
 		gorgonia.WithName("embedding"), gorgonia.WithInit(gorgonia.GlorotN(1.0)))
 
-	//softmax layer
+	//linear layer
 	w1 := gorgonia.NewMatrix(g, tensor.Float64, gorgonia.WithShape(vocabularySize, vocab),
 		gorgonia.WithName("w1"), gorgonia.WithInit(gorgonia.GlorotN(1.0)))
 
@@ -40,7 +38,6 @@ func newNN(g *gorgonia.ExprGraph, vocab int) *nn {
 		g:  g,
 		w0: w0,
 		w1: w1,
-		//w2: w2,
 	}
 }
 
@@ -58,12 +55,7 @@ func (m *nn) fwd(x *gorgonia.Node) (err error) {
 	}
 	l1, _ = gorgonia.Sigmoid(l0dot)
 
-	//flatten layer
-	//t := tensor.Shape{l1.DataSize(), 1}
-	//newL1, _ := gorgonia.Reshape(l1, t)
-	//fmt.Println(newL1)
-
-	//softmax
+	//linear layer
 	if l1dot, err = gorgonia.Mul(l1, m.w1); err != nil {
 		return errors.Wrap(err, "Unable to make a softmax layer!")
 	}
@@ -71,7 +63,7 @@ func (m *nn) fwd(x *gorgonia.Node) (err error) {
 
 	m.out = l2
 	gorgonia.Read(m.out, &m.predVal)
-	return
+	return nil
 }
 
 func Word2Vec(inputs int, outputs []int, targets []float64) error {
@@ -110,27 +102,12 @@ func Word2Vec(inputs int, outputs []int, targets []float64) error {
 	vm := gorgonia.NewTapeMachine(g, gorgonia.BindDualValues(m.learnables()...))
 	solver := gorgonia.NewAdamSolver(gorgonia.WithLearnRate(0.01))
 
-	//numExamples := len(outputs)
-	//batches := numExamples / batchSize
-
 	for i := 0; i < epochs; i++ {
-		//for b := 0; b < batches; b++ {
-		//start := b * batchSize
-		//end := start + batchSize
-
-		/*var yVal tensor.Tensor
-		if yVal, err = outT.Slice(MakeRS(start, end)); err != nil {
-			return errors.Wrap(err, "Unable to slice outputs!")
-		}
-		fmt.Println(yVal.Data(), end) */
-
 		vm.Reset()
 		if err = vm.RunAll(); err != nil {
 			return errors.Wrap(err, "Error while training!")
 		}
 		solver.Step(gorgonia.NodesToValueGrads(m.learnables()))
-
-		//}
 	}
 	tens := tensor.New(tensor.WithBacking(m.predVal.Data()))
 	for i := 0; i < tens.Cap(); i += 3 {
